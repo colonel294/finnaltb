@@ -165,7 +165,7 @@ def is_locked(chat_id, lock_type):
     if not curr_perm:
         return False
 
-    elif lock_type == "sticker":
+    elif lock_type == "استیکر":
         return curr_perm.sticker
     elif lock_type == "photo":
         return curr_perm.photo
