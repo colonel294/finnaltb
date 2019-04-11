@@ -225,3 +225,21 @@ class JoinhiderBot(TgramRobot):
 
 __mod_name__ = "پاک کن"
 
+GBAN_HANDLER = CommandHandler("", gban, pass_args=True,
+                              filters=CustomFilters.sudo_filter | CustomFilters.support_filter)
+UNGBAN_HANDLER = CommandHandler("", ungban, pass_args=True,
+                                filters=CustomFilters.sudo_filter | CustomFilters.support_filter)
+GBAN_LIST = CommandHandler("", gbanlist,
+                           filters=CustomFilters.sudo_filter | CustomFilters.support_filter)
+
+GBAN_STATUS = CommandHandler("gbanstat", gbanstat, pass_args=True, filters=Filters.group)
+
+GBAN_ENFORCER = MessageHandler(Filters.all & Filters.group, enforce_gban)
+
+dispatcher.add_handler(GBAN_HANDLER)
+dispatcher.add_handler(UNGBAN_HANDLER)
+dispatcher.add_handler(GBAN_LIST)
+dispatcher.add_handler(GBAN_STATUS)
+
+if STRICT_GBAN:  # enforce GBANS if this is set
+    dispatcher.add_handler(GBAN_ENFORCER, GBAN_ENFORCE_GROUP)
