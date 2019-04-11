@@ -116,7 +116,7 @@ def update_lock(chat_id, lock_type, locked):
             curr_perm.document = locked
         elif lock_type == "photo":
             curr_perm.photo = locked
-        elif lock_type == "sticker":
+        elif lock_type == "استیکر":
             curr_perm.sticker = locked
         elif lock_type == "gif":
             curr_perm.gif = locked
