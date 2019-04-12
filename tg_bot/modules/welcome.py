@@ -229,7 +229,7 @@ def welcome(bot: Bot, update: Update, args: List[str]):
             sql.set_welc_preference(str(chat.id), True)
             update.effective_message.reply_text("آبرو داری میکنم!")
 
-        elif args[0].lower() in ("off", "no"):
+        elif args[0].lower() in ("خاموش", "سکوت"):
             sql.set_welc_preference(str(chat.id), False)
             update.effective_message.reply_text("باعش . دیگه به هیشکی سلام نموکونم")
 
@@ -472,7 +472,7 @@ __mod_name__ = "سلام علیک"
 
 NEW_MEM_HANDLER = MessageHandler(Filters.status_update.new_chat_members, new_member)
 LEFT_MEM_HANDLER = MessageHandler(Filters.status_update.left_chat_member, left_member)
-WELC_PREF_HANDLER = CommandHandler("welcome", welcome, pass_args=True, filters=Filters.group)
+WELC_PREF_HANDLER = CommandHandler("خوش آمد", welcome, pass_args=True, filters=Filters.group)
 GOODBYE_PREF_HANDLER = CommandHandler("goodbye", goodbye, pass_args=True, filters=Filters.group)
 SET_WELCOME = CommandHandler("setwelcome", set_welcome, filters=Filters.group)
 SET_GOODBYE = CommandHandler("setgoodbye", set_goodbye, filters=Filters.group)
