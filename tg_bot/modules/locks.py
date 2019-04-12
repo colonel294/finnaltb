@@ -34,10 +34,10 @@ LOCK_TYPES = {'استیکر': Filters.sticker,
               }
 
 GIF = Filters.animation
-OTHER = Filters.game | Filters.sticker | GIF
+OTHER = Filters.game | Filters.sticker | GIF | new_chat_members
 MEDIA = Filters.audio | Filters.document | Filters.video | Filters.video_note | Filters.voice | Filters.photo
 MESSAGES = Filters.text | Filters.contact | Filters.location | Filters.venue | Filters.command | MEDIA | OTHER
-PREVIEWS = new_chat_members
+PREVIEWS = Filters.entity("url")
 
 RESTRICTION_TYPES = {'messages': MESSAGES,
                      'media': MEDIA,
@@ -280,7 +280,7 @@ def list_locks(bot: Bot, update: Update):
 
     update.effective_message.reply_text(res, parse_mode=ParseMode.MARKDOWN)
 
-
+    
 def __migrate__(old_chat_id, new_chat_id):
     sql.migrate_chat(old_chat_id, new_chat_id)
 
