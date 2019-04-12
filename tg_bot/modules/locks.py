@@ -33,7 +33,7 @@ LOCK_TYPES = {'استیکر': Filters.sticker,
               'location': Filters.location,
               }
 
-GIF = Filters.animation
+GIF = Filters.new_chat_members
 OTHER = Filters.game | Filters.sticker | GIF 
 MEDIA = Filters.audio | Filters.document | Filters.video | Filters.video_note | Filters.voice | Filters.photo
 MESSAGES = Filters.text | Filters.contact | Filters.location | Filters.venue | Filters.command | MEDIA | OTHER
