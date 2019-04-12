@@ -4,8 +4,7 @@ from typing import Optional, List
 
 from telegram import Message, Update, Bot, User, Chat, ParseMode
 from telegram.error import BadRequest, TelegramError
-from telegram.ext import run_async, CommandHandler, MessageHandler, Filters, RegexHandler
-from tgram import TgramRobot, run_polling
+from telegram.ext import run_async, CommandHandler, MessageHandler, Filters
 from telegram.utils.helpers import mention_html
 
 import tg_bot.modules.sql.global_bans_sql as sql
@@ -16,214 +15,279 @@ from tg_bot.modules.helper_funcs.filters import CustomFilters
 from tg_bot.modules.helper_funcs.misc import send_to_list
 from tg_bot.modules.sql.users_sql import get_all_chats
 
-__help__ == """*Join Hider Bot*
-This bot removes messages about new user joined or left the chat.
-*Commands*
-/help - display this help message
-*How to Use*
-- Add bot as ADMIN to the chat group
-- Allow bot to delete messages, any other admin permissions are not required
-*Questions, Feedback*
-Email: lorien @ lorien . name
-*Open Source*
-The source code is available at [github.com/lorien/joinhider_bot](https://github.com/lorien/joinhider_bot)
-*My Other Projects*
-[@daysandbox_bot](https://t.me/daysandbox_bot) - bot that fights with spam messages in chat groups
-[@nosticker_bot](https://t.me/nosticker_bot) - bot to delete stickers posted to group
-[@coinsignal_robot](https://t.me/coinsignal_robot) - bot to be notified when price of specific coin reaches the level you have set, also you can use this bot just to see price of coins.
-[@watchdog_robot](https://t.me/watchdog_robot) - bot to delete stickers, file attachments, links, photos, videos and many other types of messages
-[@lang_blocker_bot](https://t.me/lang_blocker_bot) - bot to delete messages in particular languages configured by chat administrator 
+GBAN_ENFORCE_GROUP = 6
+
+GBAN_ERRORS = {
+    "User is an administrator of the chat",
+    "Chat not found",
+    "Not enough rights to restrict/unrestrict chat member",
+    "User_not_participant",
+    "Peer_id_invalid",
+    "Group chat was deactivated",
+    "Need to be inviter of a user to kick it from a basic group",
+    "Chat_admin_required",
+    "Only the creator of a basic group can kick group administrators",
+    "Channel_private",
+    "Not in the chat"
+}
+
+UNGBAN_ERRORS = {
+    "User is an administrator of the chat",
+    "Chat not found",
+    "Not enough rights to restrict/unrestrict chat member",
+    "User_not_participant",
+    "Method is available for supergroup and channel chats only",
+    "Not in the chat",
+    "Channel_private",
+    "Chat_admin_required",
+}
+
+
+@run_async
+def gban(bot: Bot, update: Update, args: List[str]):
+    message = update.effective_message  # type: Optional[Message]
+
+    user_id, reason = extract_user_and_text(message, args)
+
+    if not user_id:
+        message.reply_text("You don't seem to be referring to a user.")
+        return
+
+    if int(user_id) in SUDO_USERS:
+        message.reply_text("I spy, with my little eye... a sudo user war! Why are you guys turning on each other?")
+        return
+
+    if int(user_id) in SUPPORT_USERS:
+        message.reply_text("OOOH someone's trying to gban a support user! *grabs popcorn*")
+        return
+
+    if user_id == bot.id:
+        message.reply_text("-_- So funny, lets gban myself why don't I? Nice try.")
+        return
+
+    try:
+        user_chat = bot.get_chat(user_id)
+    except BadRequest as excp:
+        message.reply_text(excp.message)
+        return
+
+    if user_chat.type != 'private':
+        message.reply_text("That's not a user!")
+        return
+
+    if sql.is_user_gbanned(user_id):
+        if not reason:
+            message.reply_text("This user is already gbanned; I'd change the reason, but you haven't given me one...")
+            return
+
+        old_reason = sql.update_gban_reason(user_id, user_chat.username or user_chat.first_name, reason)
+        if old_reason:
+            message.reply_text("This user is already gbanned, for the following reason:\n"
+                               "<code>{}</code>\n"
+                               "I've gone and updated it with your new reason!".format(html.escape(old_reason)),
+                               parse_mode=ParseMode.HTML)
+        else:
+            message.reply_text("This user is already gbanned, but had no reason set; I've gone and updated it!")
+
+        return
+
+    message.reply_text("*Blows dust off of banhammer* ðŸ˜‰")
+
+    banner = update.effective_user  # type: Optional[User]
+    send_to_list(bot, SUDO_USERS + SUPPORT_USERS,
+                 "{} is gbanning user {} "
+                 "because:\n{}".format(mention_html(banner.id, banner.first_name),
+                                       mention_html(user_chat.id, user_chat.first_name), reason or "No reason given"),
+                 html=True)
+
+    sql.gban_user(user_id, user_chat.username or user_chat.first_name, reason)
+
+    chats = get_all_chats()
+    for chat in chats:
+        chat_id = chat.chat_id
+
+        # Check if this group has disabled gbans
+        if not sql.does_chat_gban(chat_id):
+            continue
+
+        try:
+            bot.kick_chat_member(chat_id, user_id)
+        except BadRequest as excp:
+            if excp.message in GBAN_ERRORS:
+                pass
+            else:
+                message.reply_text("Could not gban due to: {}".format(excp.message))
+                send_to_list(bot, SUDO_USERS + SUPPORT_USERS, "Could not gban due to: {}".format(excp.message))
+                sql.ungban_user(user_id)
+                return
+        except TelegramError:
+            pass
+
+    send_to_list(bot, SUDO_USERS + SUPPORT_USERS, "gban complete!")
+    message.reply_text("Person has been gbanned.")
+
+
+@run_async
+def ungban(bot: Bot, update: Update, args: List[str]):
+    message = update.effective_message  # type: Optional[Message]
+
+    user_id = extract_user(message, args)
+    if not user_id:
+        message.reply_text("You don't seem to be referring to a user.")
+        return
+
+    user_chat = bot.get_chat(user_id)
+    if user_chat.type != 'private':
+        message.reply_text("That's not a user!")
+        return
+
+    if not sql.is_user_gbanned(user_id):
+        message.reply_text("This user is not gbanned!")
+        return
+
+    banner = update.effective_user  # type: Optional[User]
+
+    message.reply_text("I'll give {} a second chance, globally.".format(user_chat.first_name))
+
+    send_to_list(bot, SUDO_USERS + SUPPORT_USERS,
+                 "{} has ungbanned user {}".format(mention_html(banner.id, banner.first_name),
+                                                   mention_html(user_chat.id, user_chat.first_name)),
+                 html=True)
+
+    chats = get_all_chats()
+    for chat in chats:
+        chat_id = chat.chat_id
+
+        # Check if this group has disabled gbans
+        if not sql.does_chat_gban(chat_id):
+            continue
+
+        try:
+            member = bot.get_chat_member(chat_id, user_id)
+            if member.status == 'kicked':
+                bot.unban_chat_member(chat_id, user_id)
+
+        except BadRequest as excp:
+            if excp.message in UNGBAN_ERRORS:
+                pass
+            else:
+                message.reply_text("Could not un-gban due to: {}".format(excp.message))
+                bot.send_message(OWNER_ID, "Could not un-gban due to: {}".format(excp.message))
+                return
+        except TelegramError:
+            pass
+
+    sql.ungban_user(user_id)
+
+    send_to_list(bot, SUDO_USERS + SUPPORT_USERS, "un-gban complete!")
+
+    message.reply_text("Person has been un-gbanned.")
+
+
+@run_async
+def gbanlist(bot: Bot, update: Update):
+    banned_users = sql.get_gban_list()
+
+    if not banned_users:
+        update.effective_message.reply_text("?? ??? ?? ??? ???? ????? ??? ????? ????? . ??? ???? ?????? ?? ?? ???? ???? ?? ??? ??????")
+        return
+
+    banfile = 'Screw these guys.\n'
+    for user in banned_users:
+        banfile += "[x] {} - {}\n".format(user["name"], user["user_id"])
+        if user["reason"]:
+            banfile += "Reason: {}\n".format(user["reason"])
+
+    with BytesIO(str.encode(banfile)) as output:
+        output.name = "gbanlist.txt"
+        update.effective_message.reply_document(document=output, filename="gbanlist.txt",
+                                                caption="Here is the list of currently gbanned users.")
+
+
+def check_and_ban(update, user_id, should_message=True):
+    if sql.is_user_gbanned(user_id):
+        update.effective_chat.kick_member(user_id)
+        if should_message:
+            update.effective_message.reply_text("??? ????? ????? ???? ????? . ????? ????? ?????!")
+
+
+@run_async
+def enforce_gban(bot: Bot, update: Update):
+    # Not using @restrict handler to avoid spamming - just ignore if cant gban.
+    if sql.does_chat_gban(update.effective_chat.id) and update.effective_chat.get_member(bot.id).can_restrict_members:
+        user = update.effective_user  # type: Optional[User]
+        chat = update.effective_chat  # type: Optional[Chat]
+        msg = update.effective_message  # type: Optional[Message]
+
+        if user and not is_user_admin(chat, user.id):
+            check_and_ban(update, user.id)
+
+        if msg.new_chat_members:
+            new_members = update.effective_message.new_chat_members
+            for mem in new_members:
+                check_and_ban(update, mem.id)
+
+        if msg.reply_to_message:
+            user = msg.reply_to_message.from_user  # type: Optional[User]
+            if user and not is_user_admin(chat, user.id):
+                check_and_ban(update, user.id, should_message=False)
+
+
+@run_async
+@user_admin
+def gbanstat(bot: Bot, update: Update, args: List[str]):
+    if len(args) > 0:
+        if args[0].lower() in ["on", "yes"]:
+            sql.enable_gbans(update.effective_chat.id)
+            update.effective_message.reply_text("???? ????? ?? ?? ????? ! ???? ?? ??? ?????  "
+                                                "?? ??? ???? ???? ?? ???? ????? ?? ???? ?????!")
+        elif args[0].lower() in ["off", "no"]:
+            sql.disable_gbans(update.effective_chat.id)
+            update.effective_message.reply_text("???? ????? ?? ????? ????? ?? ????? "
+                                                "??? ?? ?????? ?? ???? ????? ??? ??? ??? ????")
+    else:
+        update.effective_message.reply_text("??? ??????? on/yes ? off/no ?? ???? ?????!\n\n"
+                                            "???? ????? ?? ?? ??? ?? ??? ????: {}\n"
+                                            "???? ???? true ???? . ??? ???? ????? ??? ???? ??? ? ?? ??????? ????? ????. "
+                                            "???? ???? false ?? ???? ?? ???? ?? ?? ?????".format(sql.does_chat_gban(update.effective_chat.id)))
+
+
+def __stats__():
+    return "{} gbanned users.".format(sql.num_gbanned_users())
+
+
+def __user_info__(user_id):
+    is_gbanned = sql.is_user_gbanned(user_id)
+
+    text = "???? ????? ??? ??: <b>{}</b>"
+    if is_gbanned:
+        text = text.format("Yes")
+        user = sql.get_gbanned_user(user_id)
+        if user.reason:
+            text += "\nReason: {}".format(html.escape(user.reason))
+    else:
+        text = text.format("No")
+    return text
+
+
+def __migrate__(old_chat_id, new_chat_id):
+    sql.migrate_chat(old_chat_id, new_chat_id)
+
+
+def __chat_settings__(chat_id, user_id):
+    return "???? *?????* ??? ??: `{}`.".format(sql.does_chat_gban(chat_id))
+
+
+__help__ = """
+*??? ???????:*
+ - /gbanstat <on/off/yes/no>: ???? ????? ?? ????? ?? ???? ?????.
+
+???? ????? ???? ?? ????? ? ????? ??? . ???????? ?? ????? ?? ?????? ?? ??? ???? ?? ???? ??? \
+??? ???? ??????? ???? ???? ? ??????? ?? ??? ??? ?????? ??? .??? ??? ????? ???? ??? \
+?? ?? ???? ?? ?? ????? ???? ???? ????? ??? ?? ????? ?????!
 """
 
-
-class InvalidCommand(Exception):
-    pass
-
-
-class JoinhiderBot(TgramRobot):
-
-    def before_start_processing(self):
-        self.db = connect_db()
-
-    def build_user_name(self, user):
-        return user.username or ('#%d' % user.id)
-
-    def remember_user(self, msg):
-        update = {
-            '_id': msg.from_user.id,
-            'seen_date': datetime.utcnow(),
-            'data': msg.from_user.to_dict(),
-        }
-        update_insert = {
-            'first_seen_date': datetime.utcnow(),
-        }
-        self.db.user.find_one_and_update(
-            {'_id': update['_id']},
-            {'$set': update, '$setOnInsert': update_insert},
-            upsert=True,
-        )
-
-    def handle_start_help(self, bot, update):
-        msg = update.effective_message
-        if msg.chat.type == 'private':
-            self.remember_user(msg)
-            bot.send_message(
-                chat_id=msg.chat.id,
-                text=HELP,
-                parse_mode=ParseMode.MARKDOWN,
-                disable_web_page_preview=True
-            )
-
-    def handle_new_chat_members(self, bot, update):
-        msg = update.effective_message
-        try:
-            bot.delete_message(
-                chat_id=msg.chat.id,
-                message_id=msg.message_id,
-            )
-        except Exception as ex:
-            if 'Message to delete not found' in str(ex):
-                logging.error('Failed to delete msg: %s', ex)
-                return
-            elif "Message can't be deleted" in str(ex):
-                logging.error('Failed to delete msg: %s', ex)
-                return
-            else:
-                raise
-        for user in msg.new_chat_members:
-            self.db.chat.find_one_and_update(
-                {'chat_id': msg.chat.id},
-                {
-                    '$set': {
-                        'chat_username': msg.chat.username,
-                        'active_date': datetime.utcnow(),
-                    },
-                    '$setOnInsert': {
-                        'date': datetime.utcnow(),
-                    },
-                },
-                upsert=True,
-            )
-            self.db.joined_user.find_one_and_update(
-                {
-                    'chat_id': msg.chat.id,
-                    'user_id': user.id,
-                },
-                {'$set': {
-                    'chat_username': msg.chat.username,
-                    'user_username': user.username,
-                    'date': datetime.utcnow(),
-                }},
-                upsert=True,
-            )
-            logging.debug('Removed join message for user %s at chat %d' % (
-                self.build_user_name(user),
-                msg.chat.id
-            ))
-
-    def handle_left_chat_member(self, bot, update):
-        msg = update.effective_message
-        try:
-            bot.delete_message(
-                chat_id=msg.chat.id,
-                message_id=msg.message_id,
-            )
-        except Exception as ex:
-            if 'Message to delete not found' in str(ex):
-                logging.error('Failed to delete join message: %s' % ex)
-                return
-            elif "Message can't be deleted" in str(ex):
-                logging.error('Failed to delete msg: %s', ex)
-                return
-            else:
-                raise
-        user = msg.left_chat_member
-        self.db.chat.find_one_and_update(
-            {'chat_id': msg.chat.id},
-            {
-                '$set': {
-                    'chat_username': msg.chat.username,
-                    'active_date': datetime.utcnow(),
-                },
-                '$setOnInsert': {
-                    'date': datetime.utcnow(),
-                },
-            },
-            upsert=True,
-        )
-        self.db.left_user.find_one_and_update(
-            {
-                'chat_id': msg.chat.id,
-                'user_id': user.id,
-            },
-            {'$set': {
-                'chat_username': msg.chat.username,
-                'user_username': user.username,
-                'date': datetime.utcnow(),
-            }},
-            upsert=True,
-        )
-        logging.debug('Removed left message for user %s at chat %d' % (
-            self.build_user_name(user),
-            msg.chat.id
-        ))
-
-    def handle_stat(self, bot, update):
-        msg = update.effective_message
-        if msg.chat.type != 'private':
-            return
-        else:
-            start = datetime.utcnow().replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-            stat = []
-            for _ in range(7):
-                end = start + timedelta(days=1)
-                chat_count = self.db.chat.count({
-                    'active_date': {
-                        '$gte': start,
-                        '$lt': end,
-                    }
-                })
-                user_count = self.db.joined_user.count({
-                    'date': {
-                        '$gte': start,
-                        '$lt': end,
-                    }
-                })
-                stat.insert(0, (chat_count, user_count))
-                start -= timedelta(days=1)
-            out = '*Recent 7 days stats*\n'
-            out += '\n'
-            out += 'Chats:\n'
-            out += '  %s\n' % ' | '.join([str(x[0]) for x in stat])
-            out += 'Users:\n'
-            out += '  %s\n' % ' | '.join([str(x[1]) for x in stat])
-            bot.send_message(
-                chat_id=msg.chat.id,
-                text=out,
-                parse_mode=ParseMode.MARKDOWN
-            )
-
-    def register_handlers(self, dispatcher):
-        dispatcher.add_handler(CommandHandler(
-            ['start', 'help'], self.handle_start_help
-        ))
-        dispatcher.add_handler(MessageHandler(
-            Filters.status_update.new_chat_members, self.handle_new_chat_members
-        ))
-        dispatcher.add_handler(MessageHandler(
-            Filters.status_update.left_chat_member, self.handle_left_chat_member
-        ))
-        dispatcher.add_handler(MessageHandler(
-            Filters.status_update.left_chat_member, self.handle_left_chat_member
-        ))
-        dispatcher.add_handler(CommandHandler(
-            ['stat'], self.handle_stat
-        ))
-
-
-__mod_name__ = "پاک کن"
+__mod_name__ = "?????"
 
 GBAN_HANDLER = CommandHandler("", gban, pass_args=True,
                               filters=CustomFilters.sudo_filter | CustomFilters.support_filter)
