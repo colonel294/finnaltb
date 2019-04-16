@@ -16,7 +16,7 @@ from tg_bot.modules.helper_funcs.string_handling import markdown_parser, \
     escape_invalid_curly_brackets
 from tg_bot.modules.log_channel import loggable
 
-VALID_WELCOME_FORMATTERS = ['first', 'last', 'fullname', 'username', 'id', 'count', 'chatname', 'mention']
+VALID_WELCOME_FORMATTERS = ['اسم', 'فامیل', 'نام_کامل', 'آیدی', 'id', 'شماره', 'گروه', 'منشن']
 
 ENUM_FUNC_MAP = {
     sql.Types.TEXT.value: dispatcher.bot.send_message,
@@ -104,31 +104,31 @@ def new_member(bot: Bot, update: Update):
 
                 if cust_welcome:
                     if new_mem.last_name:
-                        fullname = "{} {}".format(first_name, new_mem.last_name)
+                        نام_کامل = "{} {}".format(first_name, new_mem.last_name)
                     else:
-                        fullname = first_name
-                    count = chat.get_members_count()
-                    mention = mention_markdown(new_mem.id, first_name)
+                        نام_کامل = first_name
+                    شماره = chat.get_members_count()
+                    منشن = mention_markdown(new_mem.id, first_name)
                     if new_mem.username:
-                        username = "@" + escape_markdown(new_mem.username)
+                        آیدی = "@" + escape_markdown(new_mem.username)
                     else:
-                        username = mention
+                        آیدی = شماره
 
                     valid_format = escape_invalid_curly_brackets(cust_welcome, VALID_WELCOME_FORMATTERS)
-                    res = valid_format.format(first=escape_markdown(first_name),
-                                              last=escape_markdown(new_mem.last_name or first_name),
-                                              fullname=escape_markdown(fullname), username=username, mention=mention,
-                                              count=count, chatname=escape_markdown(chat.title), id=new_mem.id)
+                    res = valid_format.format(اسم=escape_markdown(first_name),
+                                              فامیل=escape_markdown(new_mem.last_name or first_name),
+                                              نام_کامل=escape_markdown(fullname), آیدی=آیدی, منشن=منشن,
+                                              شماره=شماره, گروه=escape_markdown(chat.title), id=new_mem.id)
                     buttons = sql.get_welc_buttons(chat.id)
                     keyb = build_keyboard(buttons)
                 else:
-                    res = sql.DEFAULT_WELCOME.format(first=first_name)
+                    res = sql.DEFAULT_WELCOME.format(اسم=first_name)
                     keyb = []
 
                 keyboard = InlineKeyboardMarkup(keyb)
 
                 sent = send(update, res, keyboard,
-                            sql.DEFAULT_WELCOME.format(first=first_name))  # type: Optional[Message]
+                            sql.DEFAULT_WELCOME.format(اسم=first_name))  # type: Optional[Message]
 
         prev_welc = sql.get_clean_pref(chat.id)
         if prev_welc:
@@ -225,17 +225,17 @@ def welcome(bot: Bot, update: Update, args: List[str]):
                 ENUM_FUNC_MAP[welcome_type](chat.id, welcome_m, parse_mode=ParseMode.MARKDOWN)
 
     elif len(args) >= 1:
-        if args[0].lower() in ("on", "yes"):
+        if args[0].lower() in ("روشن", "فعال"):
             sql.set_welc_preference(str(chat.id), True)
             update.effective_message.reply_text("آبرو داری میکنم!")
 
         elif args[0].lower() in ("خاموش", "سکوت"):
             sql.set_welc_preference(str(chat.id), False)
-            update.effective_message.reply_text("باعش . دیگه به هیشکی سلام نموکونم")
+            update.effective_message.reply_text("چشم ! من با کسی گرم نمیگیرم🙄")
 
         else:
             # idek what you're writing, say yes or no
-            update.effective_message.reply_text("تو این مورد من فقط off/no یا on/yes رو میفهمم!")
+            update.effective_message.reply_text("تو این دستور من فقط روشن/فعال یا خاموش/سکوت رو میفهمم😶")
 
 
 @run_async
@@ -271,17 +271,17 @@ def goodbye(bot: Bot, update: Update, args: List[str]):
                 ENUM_FUNC_MAP[goodbye_type](chat.id, goodbye_m, parse_mode=ParseMode.MARKDOWN)
 
     elif len(args) >= 1:
-        if args[0].lower() in ("on", "yes"):
+        if args[0].lower() in ("روشن", "فعال"):
             sql.set_gdbye_preference(str(chat.id), True)
             update.effective_message.reply_text("وقتی برن ناراحت میشم🥺")
 
-        elif args[0].lower() in ("off", "no"):
+        elif args[0].lower() in ("خاموش", "سکوت"):
             sql.set_gdbye_preference(str(chat.id), False)
             update.effective_message.reply_text("اگه برن شیرمو حلالشون نمیکنم.")
 
         else:
             # idek what you're writing, say yes or no
-            update.effective_message.reply_text("تو این مورد من فقط off/no یا on/yes رو میفهمم!")
+            update.effective_message.reply_text("تو این دستور من فقط روشن/فعال یا خاموش/سکوت رو میفهمم😶")
 
 
 @run_async
@@ -299,12 +299,12 @@ def set_welcome(bot: Bot, update: Update) -> str:
         return ""
 
     sql.set_custom_welcome(chat.id, content or text, data_type, buttons)
-    msg.reply_text("پیام خاص برای افراد خااص ،تنظیم شد!")
+    msg.reply_text("هرجور شما بخاین رفتار میکنم")
 
     return "<b>{}:</b>" \
-           "\n#SET_WELCOME" \
-           "\n<b>Admin:</b> {}" \
-           "\nSet the welcome message.".format(html.escape(chat.title),
+           "\n#متن_خوشامد" \
+           "\n<b>توسط:</b> {}" \
+           "\nتغییر کرد".format(html.escape(chat.title),
                                                mention_html(user.id, user.first_name))
 
 
@@ -317,9 +317,9 @@ def reset_welcome(bot: Bot, update: Update) -> str:
     sql.set_custom_welcome(chat.id, sql.DEFAULT_WELCOME, sql.Types.TEXT)
     update.effective_message.reply_text("پیام خوش آمد به اون چیزی که من میخوام بگم تغیر کرد!")
     return "<b>{}:</b>" \
-           "\n#RESET_WELCOME" \
-           "\n<b>Admin:</b> {}" \
-           "\nReset the welcome message to default.".format(html.escape(chat.title),
+           "\n#خوشامد_پیشفرض" \
+           "\n<b>توسط:</b> {}" \
+           "\nبه حالت پیشفرض تنظیم شد.".format(html.escape(chat.title),
                                                             mention_html(user.id, user.first_name))
 
 
@@ -339,9 +339,9 @@ def set_goodbye(bot: Bot, update: Update) -> str:
     sql.set_custom_gdbye(chat.id, content or text, data_type, buttons)
     msg.reply_text("بخان برن یه خدافظی مشتی باشون میکنم!")
     return "<b>{}:</b>" \
-           "\n#SET_GOODBYE" \
-           "\n<b>Admin:</b> {}" \
-           "\nSet the goodbye message.".format(html.escape(chat.title),
+           "\n#متن_خدافظی" \
+           "\n<b>توسط:</b> {}" \
+           "\nتغییر کرد.".format(html.escape(chat.title),
                                                mention_html(user.id, user.first_name))
 
 
@@ -354,9 +354,9 @@ def reset_goodbye(bot: Bot, update: Update) -> str:
     sql.set_custom_gdbye(chat.id, sql.DEFAULT_GOODBYE, sql.Types.TEXT)
     update.effective_message.reply_text("پیام خدافظی با خودمه الان!")
     return "<b>{}:</b>" \
-           "\n#RESET_GOODBYE" \
-           "\n<b>Admin:</b> {}" \
-           "\nReset the goodbye message.".format(html.escape(chat.title),
+           "\n#خدافظی_پیشفرض" \
+           "\n<b>توسط:</b> {}" \
+           "\nبه حالت پیشفرض تنظیم شد.".format(html.escape(chat.title),
                                                  mention_html(user.id, user.first_name))
 
 
@@ -375,25 +375,25 @@ def clean_welcome(bot: Bot, update: Update, args: List[str]) -> str:
             update.effective_message.reply_text("من در حال حاضر خوش آمد ها رو پاک نمیکنم")
         return ""
 
-    if args[0].lower() in ("on", "yes"):
+    if args[0].lower() in ("روشن", "فعال"):
         sql.set_clean_welcome(str(chat.id), True)
         update.effective_message.reply_text("باش من سعی میکنم پیامای خوش آمد قدیمی تر رو پاک کنم")
         return "<b>{}:</b>" \
-               "\n#CLEAN_WELCOME" \
-               "\n<b>Admin:</b> {}" \
-               "\nHas toggled clean welcomes to <code>ON</code>.".format(html.escape(chat.title),
+               "\n#خوشامدگویی_مرتب" \
+               "\n<b>توسط:</b> {}" \
+               "\nبه حالت <code>روشن</code> تغییر کرد.".format(html.escape(chat.title),
                                                                          mention_html(user.id, user.first_name))
-    elif args[0].lower() in ("off", "no"):
+    elif args[0].lower() in ("خاموش", "سکوت"):
         sql.set_clean_welcome(str(chat.id), False)
         update.effective_message.reply_text("اوکی من پیامای خوش آمد رو پاک نمیکنم.")
         return "<b>{}:</b>" \
-               "\n#CLEAN_WELCOME" \
-               "\n<b>Admin:</b> {}" \
-               "\nHas toggled clean welcomes to <code>OFF</code>.".format(html.escape(chat.title),
+               "\n#خوشامدگویی_مرتب" \
+               "\n<b>توسط:</b> {}" \
+               "\nبه حالت <code>خاموش</code> تغییر کرد.".format(html.escape(chat.title),
                                                                           mention_html(user.id, user.first_name))
     else:
         # idek what you're writing, say yes or no
-        update.effective_message.reply_text("تو این مورد من فقط off/no یا on/yes رو میفهمم!")
+        update.effective_message.reply_text("تو این دستور من فقط روشن/فعال یا خاموش/سکوت رو میفهمم😶")
         return ""
 
 
@@ -418,7 +418,7 @@ WELC_HELP_TXT = "من برای خوش آمد گویی آپشن هام زیاده
                 "و دیگه تموم . یا اصلی میتونی به جای کل اون لینک . لینک چنلتو بزاری  " \
                 "\n" \
                 "حتی اگه خوشت بیاد میتونی برای کساین که میان گیف . استیکر یا حتی عکس و ویس بفرستی " \
-                "فقط کافیه رو اون رسانه ریپلی بزنی و از دستور /setwelcome استفاده کنی.".format(dispatcher.bot.username)
+                "فقط کافیه رو اون رسانه ریپلی بزنی و از دستور /setwelcome استفاده کنی."
 
 
 @run_async
@@ -453,33 +453,32 @@ def __chat_settings__(chat_id, user_id):
 __help__ = """
 
 *فقط ادمینها:*
- - /welcome <on/off>: حالت خوش آمد رو خاموش یا روشن میکنم.
- - /welcome: تنضیمات خوش آمد رو در حال حاضر میگم .
+ -!خوشامد <روشن/خاموش> : حالت خوش آمد رو خاموش یا روشن میکنم.
+ - !خوشامد : وضعیت پیام خوش آمد رو در حال حاضر میگم .
+ - !خدافظی <روشن/خاموش> : حالت خدافظی رو روشن یا خاموش میکنم.
+ - !خدافظی : وضعیت پیام خدافظی رو در حال حاضر میگم.
  
- - /goodbye -> تنضیمات خدافظی رو میگم.
- - /setwelcome <متن>:
- یه پیام خوش آمد شخصی و خاص رو که برام نوشتی نشون میدم . اگه میخوای رسانه بفرستم . روش ریپلی کن.
- - /setgoodbye <متن>: 
- یه چیز مثل همون تنظیم خوش آمد ولی اینبار برای خدافظی.
- - /resetwelcome: بازگشت به پیام خوش آمد اصلیم.
- - /resetgoodbye: بازگشت به پیام خدافظی اصلیم.
- - /cleanwelcome <on/off>: وقتی ممبر جدید میاد . من سعی میکنم خوشآمد ممبر قبلی رو پاک کنم.
+ - !متن_خوشامد <متن> : یه پیام خوش آمد شخصی و خاص رو که برام نوشتی نشون میدم . اگه میخوای رسانه بفرستم . روش ریپلی کن.
+ - !متن_خدافظی <متن> : یه چیز مثل همون تنظیم خوش آمد ولی اینبار برای خدافظی.
+ - !خوشامد_پیشفرض: بازگشت به پیام خوش آمد اصلیم.
+ - !خدافظی_پیشفرض: بازگشت به پیام خدافظی اصلیم.
+ - !خوشامدگویی_مرتب <روشن/خاموش>: وقتی ممبر جدید میاد . من سعی میکنم خوشآمد ممبر  قبلی رو پاک کنم .
 
- - /welcomehelp: اطلاعات بیشتر راجب قابلیت های بیشتر من برای خوش آمد گویی.
+- !راهنمای_خوشامد: اطلاعات بیشتر راجب قابلیت های بیشتر من برای خوش آمد گویی
 """
 
-__mod_name__ = "سلام علیک"
+__mod_name__ = "احوال پرس"
 
 NEW_MEM_HANDLER = MessageHandler(Filters.status_update.new_chat_members, new_member)
 LEFT_MEM_HANDLER = MessageHandler(Filters.status_update.left_chat_member, left_member)
-WELC_PREF_HANDLER = CommandHandler("خوش_آمد", welcome, pass_args=True, filters=Filters.group)
-GOODBYE_PREF_HANDLER = CommandHandler("goodbye", goodbye, pass_args=True, filters=Filters.group)
-SET_WELCOME = CommandHandler("setwelcome", set_welcome, filters=Filters.group)
-SET_GOODBYE = CommandHandler("setgoodbye", set_goodbye, filters=Filters.group)
-RESET_WELCOME = CommandHandler("resetwelcome", reset_welcome, filters=Filters.group)
-RESET_GOODBYE = CommandHandler("resetgoodbye", reset_goodbye, filters=Filters.group)
-CLEAN_WELCOME = CommandHandler("cleanwelcome", clean_welcome, pass_args=True, filters=Filters.group)
-WELCOME_HELP = CommandHandler("welcomehelp", welcome_help)
+WELC_PREF_HANDLER = CommandHandler("خوشامد", welcome, pass_args=True, filters=Filters.group)
+GOODBYE_PREF_HANDLER = CommandHandler("خدافظی", goodbye, pass_args=True, filters=Filters.group)
+SET_WELCOME = CommandHandler("متن_خوشامد", set_welcome, filters=Filters.group)
+SET_GOODBYE = CommandHandler("متن_خدافظی", set_goodbye, filters=Filters.group)
+RESET_WELCOME = CommandHandler("خوشامد_پیشفرض", reset_welcome, filters=Filters.group)
+RESET_GOODBYE = CommandHandler("خدافظی_پیشفرض", reset_goodbye, filters=Filters.group)
+CLEAN_WELCOME = CommandHandler("خوشامدگویی_مرتب", clean_welcome, pass_args=True, filters=Filters.group)
+WELCOME_HELP = CommandHandler("راهنمای_خوشامد", welcome_help)
 
 dispatcher.add_handler(NEW_MEM_HANDLER)
 dispatcher.add_handler(LEFT_MEM_HANDLER)
